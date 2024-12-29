@@ -1,4 +1,3 @@
-# DeepScan Pro: A Deepfake Detector
 
 ![DeepScan Pro](DS.png)
 
