@@ -1,5 +1,5 @@
 
-![DeepScan Pro](DS.png)
+![DeepScan Pro](Documents/DS.png)
 
 DeepScan Pro is a robust, multi-modal system designed to detect deepfake content in images, videos, and audio. Using state-of-the-art machine learning models and an intuitive interface, DeepScan Pro ensures the authenticity of digital media in real-time, making it a powerful tool against misinformation and digital fraud.
 
