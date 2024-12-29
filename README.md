@@ -18,7 +18,7 @@ DeepScan Pro is a robust, multi-modal system designed to detect deepfake content
 
 ## 🧩 Problem Statement
 
-The rise of deepfake technology has amplified threats like misinformation and digital fraud. DeepScan Pro aims to detect manipulated media effectively, ensuring trust in digital content.
+To develop a system that detects deepfakes in media such as images, videos, and audio.
 
 ---
 
@@ -27,6 +27,7 @@ The rise of deepfake technology has amplified threats like misinformation and di
 1. Develop a multi-modal deepfake detection system for images, videos, and audio.
 2. Implement an intuitive user interface for enhanced user experience.
 3. Validate the system on diverse datasets to ensure real-world applicability.
+
 
 ---
 
