@@ -1,6 +1,7 @@
 from flet import *
 import webbrowser
 import os
+import shutil
 from math import pi
 from pages.login import *
 from service_a.auth_user import *
@@ -8,6 +9,7 @@ from trained_models.mymodel import *
 from time import sleep
 from trained_models.audiomodel import *
 from trained_models.videomodel import *
+from trained_models.image_model import *
 
 class HomePage(Container):
     def __init__(self, page: Page):
@@ -33,6 +35,13 @@ class HomePage(Container):
                                             weight=FontWeight.BOLD,
                                             text_align="center",
                                         )
+
+        self.display_file = Container(
+            width = 200,
+            height = 150,
+            visible = False
+        )
+
         self.file_result = Text( 
                                 value="",
                                 size=16,
@@ -376,7 +385,7 @@ class HomePage(Container):
                         ),
                     ),
                     Container(
-                        height=550,
+                        height=570,
                         width=550,
                         padding=padding.all(20),
                         bgcolor="#f5f5f5",
@@ -385,7 +394,7 @@ class HomePage(Container):
                         content=Column(
                             alignment=MainAxisAlignment.START,
                             horizontal_alignment=CrossAxisAlignment.CENTER,
-                            spacing=20,
+                            spacing=10,
                             controls=[
                                 Row(
                                     alignment=MainAxisAlignment.CENTER,
@@ -422,7 +431,7 @@ class HomePage(Container):
                                         ],
                                     ),
                                 ),
-                                Container(height=5),
+                                self.display_file,
                                 ElevatedButton(
                                     text="Detect Now",
                                     icon = icons.BATCH_PREDICTION,
@@ -434,10 +443,7 @@ class HomePage(Container):
                                         #padding=padding.all(10),
                                     ),
                                 ),
-                                
-                                Container(height=20),
                                 Divider(height=1, color=colors.BLACK12),
-                                
                                 Row(
                                     alignment=MainAxisAlignment.START,
                                     controls=[
@@ -457,7 +463,8 @@ class HomePage(Container):
                                         Container(content=self.t1,alignment=alignment.center),
                                         Container(content=self.progress_detect,alignment=alignment.center),
                                         Container(content=self.uploaded_file_path_text,alignment=alignment.center),
-                                    ]
+                                    ],
+                                    spacing = 3
                                 ),
                                 Row(
                                     alignment=MainAxisAlignment.CENTER,
@@ -470,7 +477,7 @@ class HomePage(Container):
                         ),
                     ),
                 ],
-                spacing=20,
+                #spacing=5,
             ),
         )
 
@@ -481,6 +488,7 @@ class HomePage(Container):
         self.file_result.visible = False
         self.file_result.value = None
         self.uploaded_file_path_text.visible = False
+        self.display_file.visible = False
         self.t1.visible = False
         self.progress_detect.visible = False
         file_picker = FilePicker(on_result=self._on_file_selected)
@@ -494,7 +502,6 @@ class HomePage(Container):
             file_extension = os.path.splitext(self._file_path)[1].lower()
             if file_extension in self.allowed_extensions:
                 self.selected_file_path = self._file_path
-
                 #self.uploaded_file_path_text.value = f"Uploaded file: {_file_path}"
                 self._show_upload_result(f"File uploaded successfully: {self._file_path} \nNow Click on Detect Now...!")
             else:
@@ -520,6 +527,19 @@ class HomePage(Container):
         self.page.dialog = dialog
         dialog.open = True
         self.page.update()
+        file_extension = os.path.splitext(self.selected_file_path)[1].lower()
+        if file_extension in [".png", ".jpg", ".jpeg", ".gif", ".bmp"]:
+            self.display_file.content = self.show_image(self.selected_file_path)
+            self.display_file.visible = True
+        elif file_extension in [".mp3", ".wav"]:
+            self.display_file.content = self.show_audio(self.selected_file_path)
+            self.display_file.visible = True
+        elif file_extension in [".mp4", ".avi", ".mkv", ".mov"]:
+            self.display_file.content = self.show_video(self.selected_file_path)
+            self.display_file.visible = True
+
+        
+
 
     def on_success_dialog_dismiss(self, dialog):
         dialog.open = False
@@ -632,6 +652,7 @@ class HomePage(Container):
             file_extension = os.path.splitext(file_path)[1].lower()
             if file_extension in [".png", ".jpg", ".jpeg", ".gif", ".bmp"]:
                 self.res_temp = detect_image(file_path, a, b)
+               #self.res_temp = detect_deepfake_image(file_path)
             elif file_extension in [".mp3", ".wav"]:
                 self.res_temp = audio_deepfake(file_path)
             elif file_extension in [".mp4", ".avi", ".mkv", ".mov"]:
@@ -660,12 +681,63 @@ class HomePage(Container):
             self.page.update()
 
 
+    def show_image(self,file_path):
+        self.display_file.height =140
+        return Image(src=file_path, width=140, height=110, fit=ImageFit.CONTAIN)
 
-    
-            
-           
-            
-            
-    
+    def show_video(self,file_path):
+        self.display_file.height = 150
+        video_path = f"file://{file_path.replace(os.sep, '/')}"  
+        return Container(
+            content=Video(
+                width=200,
+                height=150,
+                playlist=[VideoMedia(video_path)],
+                autoplay=False,
+                playlist_mode=PlaylistMode.LOOP
+            ),
+            alignment=alignment.center
+        )
 
+    def show_audio(self, file_path):
+        self.display_file.height = 100
+        self.display_file.width = 300
+        file_name = file_path.split("\\")[-1]
+        self.is_playing = False
 
+        audio = Audio(
+            src=file_path,
+            autoplay=False,
+        )
+
+        play_pause_button = IconButton(
+            icon=icons.PLAY_CIRCLE_FILLED_OUTLINED,
+            on_click=lambda e: self.toggle_audio(audio, play_pause_button)
+        )
+
+        file_name_label = Text(f"Upload file: {file_name}")
+
+        return Container(
+            content=Column(
+                [
+                    file_name_label,
+                    audio,
+                    play_pause_button
+                ],
+                spacing=2,
+                alignment=MainAxisAlignment.CENTER,
+                horizontal_alignment=CrossAxisAlignment.CENTER
+            ),
+        )
+
+    def toggle_audio(self, audio, play_pause_button):
+        if self.is_playing:
+            audio.pause()
+            play_pause_button.icon = icons.PLAY_CIRCLE_FILLED_OUTLINED
+            self.is_playing = False
+        else:
+            audio.play()
+            play_pause_button.icon = icons.PAUSE_CIRCLE_FILLED_OUTLINED
+            self.is_playing = True
+        
+        self.page.update()
