@@ -29,7 +29,7 @@ class Signup(Container):
                 border=InputBorder.NONE,
                 ref=self.fullname_ref,
                 content_padding=padding.only(top=5, bottom=0, right=30, left=50),
-                hint_text="Enter Full Name",
+                hint_text="Enter Your First Name & Last Name",
                 hint_style=TextStyle(size=12, color="#858796"),
                 cursor_color='#858796',
                 text_style=TextStyle(size=16, color='black'),
