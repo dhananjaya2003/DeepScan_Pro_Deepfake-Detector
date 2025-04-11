@@ -5,20 +5,42 @@ import shutil
 from math import pi
 from pages.login import *
 from service_a.auth_user import *
-from trained_models.mymodel import *
+#from trained_models.mymodel import *
 from time import sleep
 from trained_models.audiomodel import *
 from trained_models.videomodel import *
 from trained_models.image_model import *
+
+import librosa
+import librosa.display
+import numpy as np
+import tensorflow as tf
+import matplotlib.pyplot as plt
+import tempfile
+import uuid
 
 class HomePage(Container):
     def __init__(self, page: Page):
         super().__init__()
         self.page = page
         page.title = "Home"
-        page.scroll = None
+        self.page.scroll = 'auto'
         page.theme_mode = ThemeMode.LIGHT
         self.t1 = Text("Detecting deepfake....⌛",size=10,visible=False)
+        self.temp_con1 = Container(visible = False, height=50)
+        self.temp_div = Divider(visible = False,height=1, color=colors.BLACK26)
+        self.temp_con2 = Container(height=50,visible= False)
+        self.proof_show_text_button = TextButton(
+                                        content=Text(
+                                            "Detection Insight📈👁️",
+                                            size=13,
+                                            color=colors.BLACK,
+                                            weight=FontWeight.BOLD,
+                                            text_align="center",
+                                        ),
+                                        on_click=lambda _: self.content.scroll_to(key="proof_viz", duration=500),
+                                        visible=False,
+                                    )
         self.progress_detect = ProgressBar(
                     width=250,
                     height=8,
@@ -28,6 +50,14 @@ class HomePage(Container):
                     border_radius=4,
                     )
         self.selected_file_path = None
+        self.deepfake_proof = Container(
+                key = "proof_viz",
+                visible = False,
+                #height=300,
+                width=800,
+                border_radius=10,
+                border=border.all(1, 'black'),
+                alignment=alignment.top_center)
         self.uploaded_file_path_text = Text( 
                                             value="",
                                             size=16,
@@ -84,7 +114,7 @@ class HomePage(Container):
         self.allowed_extensions = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".mp3", ".wav", ".mp4", ".avi", ".mkv", ".mov"]
         self.uploaded_file_path_text = Text("")
         self.content = Column(
-            height=770,
+            #height=770,
             scroll= None,
             expand=True,
             controls=[
@@ -96,6 +126,13 @@ class HomePage(Container):
                         self._build_sidebar(),
                         self._build_main_content(),
                     ],
+                ),
+                self.temp_con1,
+                self.temp_div,
+                self.temp_con2,
+                Row(
+                    alignment=MainAxisAlignment.CENTER,
+                    controls=[self.deepfake_proof]
                 ),
             ],
         )
@@ -120,58 +157,19 @@ class HomePage(Container):
                         ]
                     ),
                     
-                    Row(width=650),
-
+                    Row(width=950),
+                    
                     Row(
                         controls=[
                             Text(
-                                value="Home",
+                                value=self._get_user_name_only(None),
                                 color="#4e73df",
-                                size=20,
+                                size=17,
                                 weight=FontWeight.BOLD,
                             ),
-
-                            PopupMenuButton(
-                                content =Text(
-                                    value = 'Resources',
-                                    color = colors.BLACK,
-                                    size = 20,
-                                    weight=FontWeight.BOLD,
-                                ),
-                                items=[
-                                    PopupMenuItem(text="Articles",on_click=self._article_link),
-                                    PopupMenuItem(text="Blogs",on_click=self._blog_link),
-                                    PopupMenuItem(text="GitHub",on_click = self._git_link),
-                                    PopupMenuItem(text="Data Source"),
-
-                                ],
-                            ),
-
-                            PopupMenuButton(
-                                content =Text(
-                                    value = 'Use Cases',
-                                    color = colors.BLACK,
-                                    size = 20,
-                                    weight=FontWeight.BOLD,
-                                ),
-                            ),
-
-                            PopupMenuButton(
-                                content =Text(
-                                    value = 'About',
-                                    color = colors.BLACK,
-                                    size = 20,
-                                    weight=FontWeight.BOLD,
-                                ),
-                                items=[
-                                    PopupMenuItem(text="Developers",on_click=lambda _: self.page.go("/info"),),
-                                    PopupMenuItem(text="Data Privacy",on_click=lambda _: self.page.go('/faq')),
-                                ],
-                            ),
-
-                            
+  
                         ],
-                        spacing=30,
+                        #spacing=20,
 
                     ),
 
@@ -385,7 +383,7 @@ class HomePage(Container):
                         ),
                     ),
                     Container(
-                        height=570,
+                        height=520,
                         width=550,
                         padding=padding.all(20),
                         bgcolor="#f5f5f5",
@@ -472,7 +470,14 @@ class HomePage(Container):
                                         self.file_result,
                                     ]
                                 ),
-                                
+                                Container(height=10),
+                                Row(
+                                    alignment=MainAxisAlignment.END,
+                                    vertical_alignment=CrossAxisAlignment.END,
+                                    controls=[
+                                        self.proof_show_text_button,
+                                    ]
+                                )
                             ],
                         ),
                     ),
@@ -485,12 +490,18 @@ class HomePage(Container):
 
 
     def _upload_file(self, e):
+        self.selected_file_path = None
         self.file_result.visible = False
         self.file_result.value = None
         self.uploaded_file_path_text.visible = False
         self.display_file.visible = False
         self.t1.visible = False
         self.progress_detect.visible = False
+        self.deepfake_proof.visible = False
+        self.temp_con1.visible = False
+        self.temp_div.visible = False
+        self.temp_con2.visible = False
+        self.proof_show_text_button.visible = False
         file_picker = FilePicker(on_result=self._on_file_selected)
         self.page.overlay.append(file_picker)
         self.page.update()
@@ -527,16 +538,17 @@ class HomePage(Container):
         self.page.dialog = dialog
         dialog.open = True
         self.page.update()
-        file_extension = os.path.splitext(self.selected_file_path)[1].lower()
-        if file_extension in [".png", ".jpg", ".jpeg", ".gif", ".bmp"]:
-            self.display_file.content = self.show_image(self.selected_file_path)
-            self.display_file.visible = True
-        elif file_extension in [".mp3", ".wav"]:
-            self.display_file.content = self.show_audio(self.selected_file_path)
-            self.display_file.visible = True
-        elif file_extension in [".mp4", ".avi", ".mkv", ".mov"]:
-            self.display_file.content = self.show_video(self.selected_file_path)
-            self.display_file.visible = True
+        if self.selected_file_path:
+            file_extension = os.path.splitext(self.selected_file_path)[1].lower()
+            if file_extension in [".png", ".jpg", ".jpeg", ".gif", ".bmp"]:
+                self.display_file.content = self.show_image(self.selected_file_path)
+                self.display_file.visible = True
+            elif file_extension in [".mp3", ".wav"]:
+                self.display_file.content = self.show_audio(self.selected_file_path)
+                self.display_file.visible = True
+            elif file_extension in [".mp4", ".avi", ".mkv", ".mov"]:
+                self.display_file.content = self.show_video(self.selected_file_path)
+                self.display_file.visible = True
 
         
 
@@ -544,6 +556,18 @@ class HomePage(Container):
     def on_success_dialog_dismiss(self, dialog):
         dialog.open = False
         self.page.update()
+
+    def _get_user_name_only(self, e):
+        user_info = auth.current_user
+        if user_info:
+            email = user_info.get("email", "Unknown Email")
+            uid = user_info.get("localId")
+            try:
+                user_data = database.child("users").child(uid).get()
+                username = user_data.val().get("username", "Unknown User")
+            except Exception:
+                username = "Unknown User"
+        return username
 
     def _show_user_info(self, e):
         user_info = auth.current_user
@@ -645,26 +669,48 @@ class HomePage(Container):
                 sleep(0.1)
                 self.page.update()
 
-            a, b = load_model_image()
+            #a, b = load_model_image()
+            c, d = load_video_model(model_path = r"C:\Users\hp\Downloads\model_93_acc_100_frames_celeb_FF_data.pt"
+            
+            )
             self.file_result.weight = FontWeight.BOLD
             self.file_result.size = 20
             
             file_extension = os.path.splitext(file_path)[1].lower()
             if file_extension in [".png", ".jpg", ".jpeg", ".gif", ".bmp"]:
-                self.res_temp = detect_image(file_path, a, b)
-               #self.res_temp = detect_deepfake_image(file_path)
+                #self.res_temp = detect_image(file_path, a, b)
+                self.res_temp = predict_image(file_path)
+                #original_image, image_tensor = preprocess_image(file_path)
+                #heatmap = generate_heatmap(b, image_tensor)
+                #self.final_output = overlay_heatmap(original_image, heatmap)
+
+                # Save image with a unique filename
+                #saved_image_path = save_temp_image(self.final_output)
+
+                # Show the latest image
+                #self.display_file.content = self.show_image(saved_image_path)
+                #self.display_file.visible = True
+                self._image_proof()
+                self.proof_show_text_button.visible = True
+
             elif file_extension in [".mp3", ".wav"]:
                 self.res_temp = audio_deepfake(file_path)
+                self._audio_proof()
+                self.proof_show_text_button.visible = True
             elif file_extension in [".mp4", ".avi", ".mkv", ".mov"]:
-                self.res_temp = video_deepfake(file_path)
+                self.res_temp = predict_video(c,d,file_path)
+                self._video_proof()
+                self.proof_show_text_button.visible = True
             else:
                 self._show_upload_result("Error: Unsupported file type.")
                 return
 
-            if self.res_temp == "Fake":
+            if self.res_temp == "Fake" or self.res_temp == "FAKE":
+                self.progress_detect.visible = False
                 self.file_result.color = colors.RED_600
                 self.file_result.value = "Deepfake Detected!⛔"
-            elif self.res_temp == 'Real':
+            elif self.res_temp == 'Real' or self.res_temp == "REAL":
+                self.progress_detect.visible = False
                 self.file_result.color = colors.GREEN_600
                 self.file_result.value = "No Deepfake Detected!✅"
             else:
@@ -741,3 +787,86 @@ class HomePage(Container):
             self.is_playing = True
         
         self.page.update()
+    
+
+    def _extract_audio_proof_features(self,audio_file):
+        y, sr = librosa.load(audio_file, sr=None)
+        mel_spec = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128)
+        mel_spec_db = librosa.power_to_db(mel_spec, ref=np.max)
+        mel_spec_db = np.pad(mel_spec_db, ((0, 0), (0, max(0, 128 - mel_spec_db.shape[1]))), mode='constant')[:, :128]
+        mfccs = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
+        chroma = librosa.feature.chroma_stft(y=y, sr=sr)
+        spec_contrast = librosa.feature.spectral_contrast(y=y, sr=sr)
+        zero_crossing_rate = librosa.feature.zero_crossing_rate(y)[0]  
+        features = np.concatenate([
+            mel_spec_db.flatten(),
+            mfccs.mean(axis=1),
+            chroma.mean(axis=1),
+            spec_contrast.mean(axis=1),
+            [zero_crossing_rate.mean()]  
+        ])
+        
+        return mfccs, spec_contrast, chroma, zero_crossing_rate, y, sr, mel_spec_db
+
+
+    def _generate_combined_audio_plot(self,mel_spec_db, mfcc, chroma, zcr):
+        fig, axes = plt.subplots(2, 2, figsize=(12, 8))  
+
+        librosa.display.specshow(mel_spec_db, x_axis='time', y_axis='mel', ax=axes[0, 0], cmap='magma')
+        axes[0, 0].set_title("Mel Spectrogram")
+
+        librosa.display.specshow(mfcc, x_axis='time', cmap='coolwarm', ax=axes[0, 1])
+        axes[0, 1].set_title("MFCC")
+        
+        librosa.display.specshow(chroma, x_axis='time', cmap='inferno', ax=axes[1, 0])
+        axes[1, 0].set_title("Chroma Features")
+
+        axes[1, 1].plot(zcr, color='r')
+        axes[1, 1].set_title("Zero Crossing Rate")
+
+        fig.suptitle(
+                "Acoustic Evidence Supporting the Detection",
+                fontsize=16,
+                fontweight='bold',
+                color="#004830"
+        )
+
+        plt.tight_layout()  
+
+        temp_dir = tempfile.gettempdir()
+        unique_filename = f"audio_features_{uuid.uuid4().hex}.png"
+        img_path = os.path.join(temp_dir, unique_filename)
+        plt.savefig(img_path, bbox_inches="tight", dpi=150)
+        plt.close(fig)  
+        return img_path
+
+
+
+    def _audio_proof(self):
+        mfcc, spec_contrast, chroma, zcr, y, sr, mel_spec_db = self._extract_audio_proof_features(self.selected_file_path)
+        audio_plot_path = self._generate_combined_audio_plot(mel_spec_db, mfcc, chroma, zcr)
+    
+        self.deepfake_proof.content=Image(src=audio_plot_path, height=550, width=700, fit=ImageFit.CONTAIN)
+        self.deepfake_proof.visible = True
+        self.temp_con1.visible = True
+        self.temp_div.visible = True
+        self.temp_con2.visible = True
+
+
+    def _image_proof(self):
+        image_plot_path = generate_occlusion_map3(self.selected_file_path, self.res_temp) 
+        self.deepfake_proof.content=Image(src=image_plot_path, height=550, width=700, fit=ImageFit.CONTAIN)
+        self.deepfake_proof.visible = True
+        self.temp_con1.visible = True
+        self.temp_div.visible = True
+        self.temp_con2.visible = True 
+
+
+    def _video_proof(self):
+        c, d = load_video_model(model_path = r"C:\Users\hp\Downloads\model_93_acc_100_frames_celeb_FF_data.pt")
+        video_plot_path = generate_video_proof_plot(self.selected_file_path, c, d, self.res_temp, frame_count=30)
+        self.deepfake_proof.content=Image(src=video_plot_path, height=550, width=700, fit=ImageFit.CONTAIN)
+        self.deepfake_proof.visible = True
+        self.temp_con1.visible = True
+        self.temp_div.visible = True
+        self.temp_con2.visible = True
