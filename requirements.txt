@@ -1,0 +1,4 @@
+flet
+requests
+numpy
+pyrebase
