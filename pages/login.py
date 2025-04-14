@@ -167,7 +167,7 @@ class Login(Container):
                 Text('Invalid email or Password!', size=12, color="white"),
                 bgcolor="red"
                 )
-        self.page.snack_bar.open = True
+        #self.page.snack_bar.open = True
         self.page.update()
 
     def show_error_snackbar(self, message: str):
@@ -175,5 +175,5 @@ class Login(Container):
             Text(message, size=12, color="white"),
             bgcolor="red"
         )
-        #self.page.snack_bar.open = True
+        self.page.snack_bar.open = True
         self.page.update()
