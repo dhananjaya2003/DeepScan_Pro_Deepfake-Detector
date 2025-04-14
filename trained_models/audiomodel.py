@@ -1,64 +1,68 @@
 import os
 import numpy as np
-import librosa
-from tensorflow.keras.models import Model, load_model
+import torch
+import torch.nn as nn
+import torchaudio
+from transformers import Wav2Vec2Processor, Wav2Vec2Model
+from torch.utils.data import DataLoader, TensorDataset
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import accuracy_score
+from tqdm import tqdm
+import torch.nn.functional as F
 
-def add_noise(audio, noise_factor=0.005):
-    noise = np.random.randn(len(audio))
-    return audio + noise_factor * noise
-
-def shift_pitch(audio, n_steps=2):
-    return librosa.effects.pitch_shift(audio, sr=22050, n_steps=n_steps)  
-
-def time_stretch(audio, rate=1.25):
-    return librosa.effects.time_stretch(audio, rate=rate)
-
-def extract_features(audio_file, augment=False):
-    y, sr = librosa.load(audio_file, sr=None)
-    if augment:
-        augment_choice = np.random.choice(['noise', 'pitch', 'stretch', None])
-        if augment_choice == 'noise':
-            y = add_noise(y)
-        elif augment_choice == 'pitch':
-            y = shift_pitch(y)  # Correctly call shift_pitch without sr
-        elif augment_choice == 'stretch':
-            y = time_stretch(y)
-
-    mel_spec = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128)
-    mel_spec_db = librosa.power_to_db(mel_spec, ref=np.max)
-    mel_spec_db = np.pad(mel_spec_db, ((0, 0), (0, max(0, 128 - mel_spec_db.shape[1]))), mode='constant')[:, :128]
-
-    mfccs = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
-    chroma = librosa.feature.chroma_stft(y=y, sr=sr)
-    spec_contrast = librosa.feature.spectral_contrast(y=y, sr=sr)
-    zero_crossing_rate = librosa.feature.zero_crossing_rate(y)
-
-    features = np.concatenate([ 
-        mel_spec_db.flatten(),
-        mfccs.mean(axis=1),
-        chroma.mean(axis=1),
-        spec_contrast.mean(axis=1),
-        zero_crossing_rate.mean(axis=1)
-    ])
-    return features
+# Device setup
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-import numpy as np
-import librosa
-from tensorflow.keras.models import load_model
+processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base-960h")
+model_wav2vec = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-base-960h")
+model_wav2vec = model_wav2vec.to(device)
+model_wav2vec.eval()
 
-def audio_deepfake(audio_file:str, model_path=r"D:\Final Year Project\DeepScan_Pro\trained_models\deepfake_audio_model_24.h5"):
-    model = load_model(model_path)
+
+
+def extract_embedding(audio_path):
+    speech, sr = torchaudio.load(audio_path)
+    if speech.shape[0] > 1:
+        speech = torch.mean(speech, dim=0, keepdim=True)  
+    speech = torchaudio.functional.resample(speech, sr, 16000).squeeze(0)
+    inputs = processor(speech, sampling_rate=16000, return_tensors="pt", padding=True)
+    with torch.no_grad():
+        outputs = model_wav2vec(inputs.input_values.to(device)).last_hidden_state
+    return outputs.squeeze(0).cpu().numpy()
+
+
+class AudioDeepfakeDetector(nn.Module):
+    def __init__(self, input_dim=768, hidden_dim=128):
+        super().__init__()
+        self.bilstm = nn.LSTM(input_dim, hidden_dim, batch_first=True, bidirectional=True)
+        self.attn = nn.Sequential(
+            nn.Linear(hidden_dim * 2, 64),
+            nn.Tanh(),
+            nn.Linear(64, 1)
+        )
+        self.classifier = nn.Sequential(
+            nn.Linear(hidden_dim * 2, 64),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(64, 2)
+        )
+
+    def forward(self, x):
+        lstm_out, _ = self.bilstm(x)  
+        attn_weights = F.softmax(self.attn(lstm_out), dim=1) 
+        attn_output = torch.sum(attn_weights * lstm_out, dim=1)  
+        return self.classifier(attn_output)
     
-    audio_features = extract_features(audio_file)  
-    
-    audio_features = audio_features.reshape((1, *audio_features.shape, 1)) 
-    
-    prediction = model.predict(audio_features)
-    
-    if prediction[0][0] > prediction[0][1]:
-        return "Real"
-    else:
-        return "Fake"
+model = AudioDeepfakeDetector().to(device)
+model.load_state_dict(torch.load(r"C:\Users\hp\Downloads\best_model.pth", map_location=torch.device('cpu')))
+model.eval()
 
-
+def audio_deepfake(file_path):
+    emb = extract_embedding(file_path)  
+    emb_tensor = torch.tensor(emb, dtype=torch.float32).unsqueeze(0).to(device)  
+    with torch.no_grad():
+        output = model(emb_tensor)
+        pred = torch.argmax(output, dim=1).item()
+        return "Real" if pred == 1 else "Fake"
