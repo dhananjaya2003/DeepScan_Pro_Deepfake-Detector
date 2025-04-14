@@ -143,21 +143,23 @@ class HomePage(Container):
             padding=padding.only(left=50, right=70),
             bgcolor=None,
             content=Row(
-                alignment=MainAxisAlignment.SPACE_BETWEEN,
+                alignment=MainAxisAlignment.END,
                 vertical_alignment=CrossAxisAlignment.CENTER,
                 controls=[
-                    Row(
-                        controls=[
-                            Image(
-                                src=r"assets/DS.png",
-                                width=200,
-                                height=100,
-                                fit=ImageFit.CONTAIN,
-                            ),
-                        ]
+                    Container(
+                        content=Row(
+                            controls=[
+                                Image(
+                                    src=r"assets/DS.png",
+                                    width=200,
+                                    height=100,
+                                    fit=ImageFit.CONTAIN,
+                                ),
+                            ]
+                        ),
+                        expand=True  
                     ),
-                    
-                    Row(width=950),
+                    #Row(width=950),
                     
                     Row(
                         controls=[
