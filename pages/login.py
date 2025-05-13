@@ -64,7 +64,7 @@ class Login(Container):
                                 weight=FontWeight.BOLD,
                             ),
                             self._build_text_field("Enter Your Email", icons.PERSON, self.login_email_ref),
-                            self._build_text_field("Enter Your Password", icons.LOCK, self.login_pass_ref, True),
+                            self._build_text_field("Enter Your Password", icons.LOCK, self.login_pass_ref, True,self.login),
                             Container(
                                 alignment=alignment.center_right,
                                 padding=padding.only(right=20, top=0),
@@ -118,7 +118,7 @@ class Login(Container):
             ],
         )
 
-    def _build_text_field(self, hint, icon, ref, is_password=False):
+    def _build_text_field(self, hint, icon, ref, is_password=False,on_submit_val=None):
         return Container(
             height=40,
             border=border.all(width=1, color=self.default_border_color),
@@ -134,46 +134,44 @@ class Login(Container):
                 password=is_password,
                 can_reveal_password=True,
                 content_padding=padding.only(top=5, bottom=0, right=40, left=10),
+                on_submit=on_submit_val,
             ),
         )
+
 
     def login(self, e):
         email = self.login_email_ref.current.value
         password = self.login_pass_ref.current.value
 
-        if re.fullmatch(self.email_regex, str(email)):
-            self.is_email_valid = True
-        else:
-            self.is_email_valid = False
+        if not re.fullmatch(self.email_regex, str(email)):
             self.show_error_snackbar("Enter a valid email!")
+            return
 
         if len(password) <= 6:
-            self.is_pass_valid = False
             self.show_error_snackbar("Password must be more than 6 characters!")
-        else:
-            self.is_pass_valid = True
+            return
 
-        if self.is_email_valid and self.is_pass_valid:
-            try:
-                self.user = auth.sign_in_with_email_and_password(email, password)
-                refreshToken = self.user['refreshToken']
-                self.page.client_storage.set('auth-token',refreshToken)
-                auth.current_user = self.user
-                if self.user:
-                    self.page.go('/check')
-            except Exception as e:
-                print(e)
-                self.page.snack_bar = SnackBar(
-                Text('Invalid email or Password!', size=12, color="white"),
-                bgcolor="red"
-                )
-        #self.page.snack_bar.open = True
-        self.page.update()
+        try:
+            self.user = auth.sign_in_with_email_and_password(email, password)
+            refreshToken = self.user['refreshToken']
+            self.page.client_storage.set('auth-token', refreshToken)
+            auth.current_user = self.user
+
+            if self.user:
+                self.page.snack_bar = None
+                self.page.go('/check')
+
+        except Exception as e:
+            #print(e)
+            self.show_error_snackbar("Invalid email or Password!")
+
 
     def show_error_snackbar(self, message: str):
         self.page.snack_bar = SnackBar(
-            Text(message, size=12, color="white"),
-            bgcolor="red"
+            content=Text(message, size=12, color="white"),
+            bgcolor="red",
+            behavior="floating",
+            duration=3000
         )
         self.page.snack_bar.open = True
         self.page.update()
