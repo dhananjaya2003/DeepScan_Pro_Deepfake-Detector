@@ -7,10 +7,11 @@ from pages.login import *
 from service_a.auth_user import *
 #from trained_models.mymodel import *
 from time import sleep
+import asyncio
 from trained_models.audiomodel import *
 from trained_models.videomodel import *
 from trained_models.image_model import *
-
+import threading
 import librosa
 import librosa.display
 import numpy as np
@@ -18,6 +19,7 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 import tempfile
 import uuid
+import time
 
 class HomePage(Container):
     def __init__(self, page: Page):
@@ -30,6 +32,7 @@ class HomePage(Container):
         self.temp_con1 = Container(visible = False, height=50)
         self.temp_div = Divider(visible = False,height=1, color=colors.BLACK26)
         self.temp_con2 = Container(height=50,visible= False)
+        self.c, self.d = load_video_model(model_path = r"D:\Final Year Project\DeepScan_Pro\trained_models\model_95_acc_40_frames_FF_data.pt")
         self.proof_show_text_button = TextButton(
                                         content=Text(
                                             "Detection Insight📈👁️",
@@ -49,6 +52,14 @@ class HomePage(Container):
                     bgcolor='#eeeeee',
                     border_radius=4,
                     )
+        self.result_text = Text(
+                                "Result :",
+                                size=25,
+                                weight="bold",
+                                color="#480a32",
+                                text_align="center",
+                                visible = False
+                                )
         self.selected_file_path = None
         self.deepfake_proof = Container(
                 key = "proof_viz",
@@ -67,7 +78,7 @@ class HomePage(Container):
                                         )
 
         self.display_file = Container(
-            width = 200,
+            width = 250,
             height = 150,
             visible = False
         )
@@ -159,6 +170,7 @@ class HomePage(Container):
                         ),
                         expand=True  
                     ),
+                    
                     #Row(width=950),
                     
                     Row(
@@ -174,15 +186,16 @@ class HomePage(Container):
                         #spacing=20,
 
                     ),
-
+                    
+                    #Container(width=5),
 
                     PopupMenuButton(
                         content=Container(
-                            width=50,  # Adjust width and height to make the icon larger
+                            width=50,  
                             height=50,
                             content=Icon(
                                 icons.ACCOUNT_CIRCLE,
-                                size=40,  # Adjust the size to your preference
+                                size=40,  
                                 color=colors.INDIGO_500,
                             ),
                         ),
@@ -197,7 +210,7 @@ class HomePage(Container):
 
     def _build_sidebar(self):
         return Container(
-            width=170,
+            width=245,
             height=640,
             padding=padding.only(left=20, right=10,top=20),
             alignment=alignment.top_left,
@@ -223,7 +236,7 @@ class HomePage(Container):
                     self._build_sidebar_item(icon=icons.POLICY_OUTLINED, label="Policy",on_click=lambda _: self.page.go('/faq')),
                     self._build_sidebar_item(icon=icons.CONTACT_PAGE_OUTLINED, label="Contact",on_click=lambda _: self.page.go("/info"),),
                     Divider(color=colors.WHITE24),
-                    Container(height=60),
+                    Container(height=30),
                     self._build_sidebar_item(icon=icons.SETTINGS, label="Settings", on_click=self._open_settings_dialog),
                     Divider(color=colors.WHITE24),
                 ],
@@ -237,7 +250,7 @@ class HomePage(Container):
         return Container(
             alignment=alignment.center if centered else alignment.center_left,
             content=Row(
-                controls=[Icon(icon, color=colors.WHITE, size=20), Text(label, color=colors.WHITE, size=16, weight="bold")],
+                controls=[Container(width = 20),Icon(icon, color=colors.WHITE, size=30), Text(label, color=colors.WHITE, size=16, weight="bold")],
                 spacing=10,
                 alignment=MainAxisAlignment.START,
             ),
@@ -248,21 +261,22 @@ class HomePage(Container):
         return Container(
             expand=True,
             bgcolor=None,
-            padding=padding.only(top=70, left=15, bottom=50),
+            padding=padding.only(top=70, left=20, bottom=50),
             content=Row(
                 alignment=MainAxisAlignment.START,
                 vertical_alignment=CrossAxisAlignment.START,
                 controls=[
                     Container(
-                        width=700,
-                        padding=padding.only(top=50, left=15, right=20),
+                        width=650,
+                        padding=padding.only(top=50, left=5, right=20),
                         content=Column(
                             controls=[
                                 Text(
-                                    "\t\t\t\tBe Protected Against Deepfakes!",
+                                    "\t\t\t\tBe Safe Against Deepfakes!",
                                     size=37,
                                     weight="bold",
                                     color="#000000",
+                                    #text_align="center"
                                 ),
                                 Text(
                                     "We offer a tool that can identify if an image, video, and audio is a deepfake or real with greater accuracy.",
@@ -279,15 +293,15 @@ class HomePage(Container):
                                             bgcolor="#dee2e6",
                                             border_radius=10,
                                             border=border.all(1, 'black12'),
-                                            width=170,
-                                            height=300,
+                                            width=150,
+                                            height=170,
                                             padding=padding.all(10),
                                             content=Column(
-                                                alignment=MainAxisAlignment.START,
+                                                alignment=MainAxisAlignment.CENTER,
                                                 horizontal_alignment=CrossAxisAlignment.CENTER,
                                                 spacing=10,
                                                 controls=[
-                                                    Text("1", size=50, weight="bold", color="#637aa7"),
+                                                    
                                                     Icon(
                                                         icons.UPLOAD_FILE,
                                                         size=50,
@@ -300,12 +314,7 @@ class HomePage(Container):
                                                         color="#000000",
                                                         text_align="center",
                                                     ),
-                                                    Text(
-                                                        "Login and Upload File",
-                                                        size=14,
-                                                        color="#555555",
-                                                        text_align="center",
-                                                    ),
+                                                    
                                                 ],
                                             ),
                                         ),
@@ -313,15 +322,15 @@ class HomePage(Container):
                                             border_radius=10,
                                             border=border.all(1, 'black12'),
                                             bgcolor="#dee2e6",
-                                            width=170,
-                                            height=300,
+                                            width=150,
+                                            height=170,
                                             padding=padding.all(10),
                                             content=Column(
-                                                alignment=MainAxisAlignment.START,
+                                                alignment=MainAxisAlignment.CENTER,
                                                 horizontal_alignment=CrossAxisAlignment.CENTER,
                                                 spacing=10,
                                                 controls=[
-                                                    Text("2", size=50, weight="bold", color="#637aa7"),
+                                                    
                                                     Icon(
                                                         icons.COMPUTER_OUTLINED,
                                                         size=50,
@@ -334,12 +343,7 @@ class HomePage(Container):
                                                         color="#000000",
                                                         text_align="center",
                                                     ),
-                                                    Text(
-                                                        "Recognize differences between real and fake content.",
-                                                        size=14,
-                                                        color="#555555",
-                                                        text_align="center",
-                                                    ),
+                                                    
                                                 ],
                                             ),
                                         ),
@@ -347,15 +351,14 @@ class HomePage(Container):
                                             bgcolor="#dee2e6",
                                             border_radius=10,
                                             border=border.all(1, 'black12'),
-                                            width=170,
-                                            height=300,
+                                            width=150,
+                                            height=170,
                                             padding=padding.all(10),
                                             content=Column(
-                                                alignment=MainAxisAlignment.START,
+                                                alignment=MainAxisAlignment.CENTER,
                                                 horizontal_alignment=CrossAxisAlignment.CENTER,
                                                 spacing=10,
                                                 controls=[
-                                                    Text("3", size=50, weight="bold", color="#637aa7"),
                                                     Icon(
                                                         icons.VERIFIED,
                                                         size=50,
@@ -368,12 +371,7 @@ class HomePage(Container):
                                                         color="#000000",
                                                         text_align="center",
                                                     ),
-                                                    Text(
-                                                        "Get Result",
-                                                        size=14,
-                                                        color="#555555",
-                                                        text_align="center",
-                                                    ),
+                                                   
                                                 ],
                                             ),
                                         ),
@@ -447,13 +445,7 @@ class HomePage(Container):
                                 Row(
                                     alignment=MainAxisAlignment.START,
                                     controls=[
-                                        Text(
-                                            "Result :",
-                                            size=25,
-                                            weight="bold",
-                                            color="#480a32",
-                                            text_align="center",
-                                        ),
+                                       self.result_text,
 
                                     ]
                                 ),
@@ -552,9 +544,6 @@ class HomePage(Container):
                 self.display_file.content = self.show_video(self.selected_file_path)
                 self.display_file.visible = True
 
-        
-
-
     def on_success_dialog_dismiss(self, dialog):
         dialog.open = False
         self.page.update()
@@ -651,6 +640,7 @@ class HomePage(Container):
         mailto_link = f"https://mail.google.com/mail/?view=cm&fs=1&to={bug_report_email}&su={subject}&body={body}"
         webbrowser.open(mailto_link)
 
+
     def _call_detect_deepfake(self, e):
         if self.selected_file_path:
             self.uploaded_file_path_text.color = "#598392"
@@ -660,21 +650,19 @@ class HomePage(Container):
         else:
             self._show_upload_result("Error: No file selected. Please upload a file first.")
 
+
     def _detect_deepfake(self,file_path):
         if not os.path.exists(file_path):
             self._show_upload_result("Error: File not found. Please re-upload.")
         else:
+            self.progress_detect.value = None
             self.progress_detect.visible = True
             self.t1.visible = True
-            for i in range(0, 101):
-                self.progress_detect.value = i * 0.01
-                sleep(0.1)
-                self.page.update()
+            self.result_text.visible = True
+            self.page.update()  
 
             #a, b = load_model_image()
-            c, d = load_video_model(model_path = r"C:\Users\hp\Downloads\model_93_acc_100_frames_celeb_FF_data.pt"
-            
-            )
+            #c, d = load_video_model(model_path = r"C:\Users\hp\Downloads\model_93_acc_100_frames_celeb_FF_data.pt")
             self.file_result.weight = FontWeight.BOLD
             self.file_result.size = 20
             
@@ -700,7 +688,7 @@ class HomePage(Container):
                 self._audio_proof()
                 self.proof_show_text_button.visible = True
             elif file_extension in [".mp4", ".avi", ".mkv", ".mov"]:
-                self.res_temp = predict_video(c,d,file_path)
+                self.res_temp,self.video_plot_path = predict_video_with_plot2(self.c,self.d,file_path)
                 self._video_proof()
                 self.proof_show_text_button.visible = True
             else:
@@ -718,7 +706,7 @@ class HomePage(Container):
             else:
                 self.file_result.weight = None
                 self.file_result.color = colors.GREEN_600
-                self.file_result.value = "Sorry for inconvinence! \nVideo model is under development!"
+                self.file_result.value = "Sorry for inconvinence! \nCheck Your Network Connection...."
                 self.file_result.size = 10
                 
 
@@ -738,7 +726,7 @@ class HomePage(Container):
         video_path = f"file://{file_path.replace(os.sep, '/')}"  
         return Container(
             content=Video(
-                width=200,
+                width=230,
                 height=150,
                 playlist=[VideoMedia(video_path)],
                 autoplay=False,
@@ -865,10 +853,11 @@ class HomePage(Container):
 
 
     def _video_proof(self):
-        c, d = load_video_model(model_path = r"C:\Users\hp\Downloads\model_93_acc_100_frames_celeb_FF_data.pt")
-        video_plot_path = generate_video_proof_plot(self.selected_file_path, c, d, self.res_temp, frame_count=30)
-        self.deepfake_proof.content=Image(src=video_plot_path, height=550, width=700, fit=ImageFit.CONTAIN)
+        #c, d = load_video_model(model_path = r"C:\Users\hp\Downloads\model_93_acc_100_frames_celeb_FF_data.pt")
+        #self.video_plot_path = generate_video_proof_plot(self.selected_file_path, self.c, self.d, self.res_temp, frame_count=10)
+        self.deepfake_proof.content=Image(src=self.video_plot_path, height=550, width=700, fit=ImageFit.CONTAIN)
         self.deepfake_proof.visible = True
         self.temp_con1.visible = True
         self.temp_div.visible = True
         self.temp_con2.visible = True
+
