@@ -40,7 +40,7 @@ def load_video_model(model_path):
     model.eval()  
     return model, device
 
-def preprocess_video(video_path, frame_count=100):
+def preprocess_video(video_path, frame_count=60):
     cap = cv2.VideoCapture(video_path)
     frames = []
     
@@ -97,11 +97,7 @@ def predict_video(model, device, video_path):
     return label
 
 
-
-
- 
-    
-def generate_video_proof_plot(video_path, model, device, overall_label, frame_count=30):
+def generate_video_proof_plot(video_path, model, device, overall_label, frame_count=10):
     cap = cv2.VideoCapture(video_path)
     frames = []
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -190,3 +186,100 @@ def generate_video_proof_plot(video_path, model, device, overall_label, frame_co
     plt.close(fig)
 
     return save_path
+
+
+def predict_video_with_plot2(model, device, video_path, frame_count=40, chunk_size=2):
+    cap = cv2.VideoCapture(video_path)
+    frames = []
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    interval = max(total_frames // frame_count, 1)
+
+    for i in range(frame_count):
+        cap.set(cv2.CAP_PROP_POS_FRAMES, i * interval)
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        face_locations = face_recognition.face_locations(frame)
+
+        if face_locations:
+            top, right, bottom, left = face_locations[0]
+            face = frame[top:bottom, left:right]
+        else:
+            face = frame
+
+        face = cv2.resize(face, (224, 224))
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize([0.5], [0.5])
+        ])
+        frames.append(transform(face))
+
+    cap.release()
+
+    if not frames:
+        print("No frames extracted.")
+        return None, None
+
+    # Step 2: Stack and send to device
+    frames_tensor = torch.stack(frames).unsqueeze(0).to(device)
+    batch_size, seq_length, c, h, w = frames_tensor.shape
+    print("frame extracted....")
+
+    # Step 3: Forward pass
+    with torch.no_grad():
+        x = frames_tensor.view(batch_size * seq_length, c, h, w)
+        fmap = model.model(x)
+        pooled = model.avgpool(fmap)
+        pooled = pooled.view(batch_size, seq_length, -1)
+        lstm_out, _ = model.lstm(pooled)
+        logits = model.linear1(lstm_out)  # shape: [1, seq_length, 2]
+        probs = torch.softmax(logits, dim=-1)  # softmax per frame
+
+    # Step 4: Compute overall prediction
+    final_probs = torch.softmax(logits[:, -1, :], dim=1)  # use last timestep
+    confidence, predicted_class = torch.max(final_probs, dim=1)
+    label = "FAKE" if predicted_class.item() == 1 else "REAL"
+    print(f"Prediction: {label} (Confidence: {confidence.item():.4f})")
+
+    # Step 5: Get per-frame max confidence values
+    per_frame_confidences = probs[0].cpu().numpy()
+    max_confidences = [float(np.max(p)) for p in per_frame_confidences]
+
+    # Step 6: Average confidence in chunks of `chunk_size`
+    averaged_conf = [
+        np.mean(max_confidences[i:i + chunk_size])
+        for i in range(0, len(max_confidences), chunk_size)
+    ]
+    chunk_indices = list(range(len(averaged_conf)))
+
+    color = "#66bb6a" if label == "REAL" else "#ee0a26"
+
+    # Step 7: Plot with your original styling
+    fig, axs = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+
+    axs[0].plot(chunk_indices, averaged_conf, color=color, marker='o', linestyle='-')
+    axs[0].set_title("Confidence Over Time")
+    axs[0].set_ylabel("Confidence")
+    axs[0].set_ylim(0, 1)
+    axs[0].grid(True)
+
+    axs[1].bar(chunk_indices, averaged_conf, color=color)
+    axs[1].set_title("Avg Confidence Per 04 Frames")
+    axs[1].set_xlabel("Frame Number")
+    axs[1].set_ylabel("Confidence")
+    axs[1].set_ylim(0, 1)
+
+    fig.suptitle("Video-Level Detection Breakdown", fontsize=16, fontweight='bold', color="#004830")
+    plt.tight_layout()
+
+    # Step 8: Save plot
+    temp_dir = tempfile.gettempdir()
+    filename = f"prediction_plot_{uuid.uuid4().hex}.png"
+    save_path = os.path.join(temp_dir, filename)
+    fig.savefig(save_path, bbox_inches="tight", pad_inches=0.1)
+    plt.close(fig)
+
+    print(f"Confidence plot saved to: {save_path}")
+    return label, save_path
