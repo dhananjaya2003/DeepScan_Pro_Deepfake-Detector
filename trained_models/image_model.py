@@ -201,8 +201,8 @@ def generate_occlusion_map3(img_path, label):
     occlusion = Occlusion(model_wrapper)
     attributions_occ = occlusion.attribute(
         img_tensor,
-        strides=(3, 16, 16),
-        sliding_window_shapes=(3, 30, 30),
+        strides=(3, 23, 23),
+        sliding_window_shapes=(3, 56, 56),
         baselines=baseline
     )
 
