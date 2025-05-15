@@ -1,0 +1,12 @@
+Paper Publication details:
+We are pleased to announce the publication of our research paper titled “DeepScan Pro - A Deepfake Detector” in the International Journal of Creative Research Thoughts (IJCRT).
+  Volume: 13
+  Issue: 5
+  Date: May 2025
+  ISSN: 2320-2882
+  Paper ID: 285218
+  Page Numbers: b673-b680
+You can access the published paper at the following links:
+  Published Paper PDF: http://www.ijcrt.org/papers/IJCRT2505188
+  Published Paper URL: http://ijcrt.org/viewfull.php?&p_id=IJCRT2505188
+  Published Paper PDF Download: https://ijcrt.org/download.php?file=IJCRT2505188.pdf
